@@ -34,7 +34,6 @@ std::function<char*(size_t N)> resizeFunctional(torch::Tensor& t) {
 
 std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 RasterizeGaussiansCUDA(
-	const torch::Tensor& background,
 	const torch::Tensor& means3D,
     const torch::Tensor& colors,
     const torch::Tensor& opacity,
@@ -65,7 +64,7 @@ RasterizeGaussiansCUDA(
   auto int_opts = means3D.options().dtype(torch::kInt32);
   auto float_opts = means3D.options().dtype(torch::kFloat32);
 
-  torch::Tensor out_color = torch::full({NUM_CHANNELS, H, W}, 0.0, float_opts);
+  torch::Tensor out_color = torch::full({NUM_CHANNELS + 1, H, W}, 0.0, float_opts);
   torch::Tensor radii = torch::full({P}, 0, means3D.options().dtype(torch::kInt32));
   
   torch::Device device(torch::kCUDA);
@@ -91,7 +90,6 @@ RasterizeGaussiansCUDA(
 		binningFunc,
 		imgFunc,
 	    P, degree, M,
-		background.contiguous().data<float>(),
 		W, H,
 		means3D.contiguous().data<float>(),
 		sh.contiguous().data_ptr<float>(),
@@ -116,7 +114,7 @@ RasterizeGaussiansCUDA(
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
- 	const torch::Tensor& background,
+ 	const torch::Tensor& out_color,
 	const torch::Tensor& means3D,
 	const torch::Tensor& radii,
     const torch::Tensor& colors,
@@ -161,7 +159,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   if(P != 0)
   {  
 	  CudaRasterizer::Rasterizer::backward(P, degree, M, R,
-	  background.contiguous().data<float>(),
+	  out_color.contiguous().data<float>(),
 	  W, H, 
 	  means3D.contiguous().data<float>(),
 	  sh.contiguous().data<float>(),

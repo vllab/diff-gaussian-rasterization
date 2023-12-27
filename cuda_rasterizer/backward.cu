@@ -402,7 +402,7 @@ renderCUDA(
 	const uint2* __restrict__ ranges,
 	const uint32_t* __restrict__ point_list,
 	int W, int H,
-	const float* __restrict__ bg_color,
+	const float* __restrict__ out_color,
 	const float2* __restrict__ points_xy_image,
 	const float4* __restrict__ conic_opacity,
 	const float* __restrict__ colors,
@@ -440,6 +440,7 @@ renderCUDA(
 	// product of all (1 - alpha) factors. 
 	const float T_final = inside ? final_Ts[pix_id] : 0;
 	float T = T_final;
+	const float opacity_final = 1.0001f - T_final;
 
 	// We start from the back. The ID of the last contributing
 	// Gaussian is known from each pixel from the forward.
@@ -447,9 +448,9 @@ renderCUDA(
 	const int last_contributor = inside ? n_contrib[pix_id] : 0;
 
 	float accum_rec[C] = { 0 };
-	float dL_dpixel[C];
+	float dL_dpixel[C + 1];
 	if (inside)
-		for (int i = 0; i < C; i++)
+		for (int i = 0; i < C + 1; i++)
 			dL_dpixel[i] = dL_dpixels[i * H * W + pix_id];
 
 	float last_alpha = 0;
@@ -501,7 +502,8 @@ renderCUDA(
 				continue;
 
 			T = T / (1.f - alpha);
-			const float dchannel_dcolor = alpha * T;
+			const float dchannel_dcolor = alpha * T / opacity_final;
+			const float dopacity_final_dalpha = T_final / (1.f - alpha);
 
 			// Propagate gradients to per-Gaussian colors and keep
 			// gradients w.r.t. alpha (blending factor for a Gaussian/pixel
@@ -516,22 +518,16 @@ renderCUDA(
 				last_color[ch] = c;
 
 				const float dL_dchannel = dL_dpixel[ch];
-				dL_dalpha += (c - accum_rec[ch]) * dL_dchannel;
+				dL_dalpha += (T * (c - accum_rec[ch]) - out_color[ch * H * W + pix_id] * dopacity_final_dalpha) * dL_dchannel;
 				// Update the gradients w.r.t. color of the Gaussian. 
 				// Atomic, since this pixel is just one of potentially
 				// many that were affected by this Gaussian.
 				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
 			}
-			dL_dalpha *= T;
+			dL_dalpha /= opacity_final;
+			dL_dalpha += dopacity_final_dalpha * dL_dpixel[C];
 			// Update last alpha (to be used in the next iteration)
 			last_alpha = alpha;
-
-			// Account for fact that alpha also influences how much of
-			// the background color is added if nothing left to blend
-			float bg_dot_dpixel = 0;
-			for (int i = 0; i < C; i++)
-				bg_dot_dpixel += bg_color[i] * dL_dpixel[i];
-			dL_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel;
 
 
 			// Helpful reusable temporary variables
@@ -626,7 +622,7 @@ void BACKWARD::render(
 	const uint2* ranges,
 	const uint32_t* point_list,
 	int W, int H,
-	const float* bg_color,
+	const float* out_color,
 	const float2* means2D,
 	const float4* conic_opacity,
 	const float* colors,
@@ -642,7 +638,7 @@ void BACKWARD::render(
 		ranges,
 		point_list,
 		W, H,
-		bg_color,
+		out_color,
 		means2D,
 		conic_opacity,
 		colors,

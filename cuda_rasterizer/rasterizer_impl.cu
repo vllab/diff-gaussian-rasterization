@@ -200,7 +200,6 @@ int CudaRasterizer::Rasterizer::forward(
 	std::function<char* (size_t)> binningBuffer,
 	std::function<char* (size_t)> imageBuffer,
 	const int P, int D, int M,
-	const float* background,
 	const int width, int height,
 	const float* means3D,
 	const float* shs,
@@ -329,7 +328,6 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.conic_opacity,
 		imgState.accum_alpha,
 		imgState.n_contrib,
-		background,
 		out_color), debug)
 
 	return num_rendered;
@@ -339,7 +337,7 @@ int CudaRasterizer::Rasterizer::forward(
 // to forward render pass
 void CudaRasterizer::Rasterizer::backward(
 	const int P, int D, int M, int R,
-	const float* background,
+	const float* out_color,
 	const int width, int height,
 	const float* means3D,
 	const float* shs,
@@ -393,7 +391,7 @@ void CudaRasterizer::Rasterizer::backward(
 		imgState.ranges,
 		binningState.point_list,
 		width, height,
-		background,
+		out_color,
 		geomState.means2D,
 		geomState.conic_opacity,
 		color_ptr,
