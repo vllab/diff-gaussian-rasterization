@@ -406,7 +406,6 @@ renderCUDA(
 	const float2* __restrict__ points_xy_image,
 	const float4* __restrict__ conic_opacity,
 	const float* __restrict__ colors,
-	const float* __restrict__ final_Ts,
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels,
 	float3* __restrict__ dL_dmean2D,
@@ -438,7 +437,7 @@ renderCUDA(
 
 	// In the forward, we stored the final value for T, the
 	// product of all (1 - alpha) factors. 
-	const float T_final = inside ? final_Ts[pix_id] : 0;
+	const float T_final = inside ? 1.f - out_color[C * H * W + pix_id] : 0;
 	float T = T_final;
 	const float opacity_final = 1.0001f - T_final;
 
@@ -626,7 +625,6 @@ void BACKWARD::render(
 	const float2* means2D,
 	const float4* conic_opacity,
 	const float* colors,
-	const float* final_Ts,
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
 	float3* dL_dmean2D,
@@ -642,7 +640,6 @@ void BACKWARD::render(
 		means2D,
 		conic_opacity,
 		colors,
-		final_Ts,
 		n_contrib,
 		dL_dpixels,
 		dL_dmean2D,
